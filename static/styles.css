@@ -1,0 +1,130 @@
+:root {
+    --bg: #f4f7fb;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #4b5563;
+    --primary: #0f766e;
+    --primary-hover: #115e59;
+    --danger-bg: #fee2e2;
+    --danger-text: #991b1b;
+    --border: #d1d5db;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text);
+    background: linear-gradient(150deg, #e2e8f0 0%, #f8fafc 35%, #eef2ff 100%);
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.card {
+    width: 100%;
+    max-width: 760px;
+    background: var(--card);
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.9rem;
+}
+
+.subtitle {
+    margin-top: 8px;
+    margin-bottom: 20px;
+    color: var(--muted);
+}
+
+.alert {
+    margin-bottom: 16px;
+    border: 1px solid #fecaca;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    padding: 10px 12px;
+    border-radius: 10px;
+}
+
+.label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+input[type="file"] {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 18px;
+}
+
+fieldset {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin: 0 0 20px 0;
+}
+
+legend {
+    padding: 0 6px;
+    font-weight: 600;
+}
+
+.periodos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f9fafb;
+}
+
+button {
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    background: var(--primary);
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+button:hover {
+    background: var(--primary-hover);
+}
+
+@media (max-width: 640px) {
+    .card {
+        padding: 20px;
+    }
+
+    h1 {
+        font-size: 1.55rem;
+    }
+}

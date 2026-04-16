@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: generador-boletines
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: gunicorn wsgi:app
+    autoDeploy: true
+    healthCheckPath: /health

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Boletines</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <main class="container">
+        <section class="card">
+            <h1>Generador de Boletines</h1>
+            <p class="subtitle">Carga tu archivo Excel, selecciona periodos y descarga el reporte final.</p>
+
+            {% if error %}
+                <div class="alert">{{ error }}</div>
+            {% endif %}
+
+            <form action="{{ url_for('generar') }}" method="post" enctype="multipart/form-data">
+                <label for="archivo_excel" class="label">Archivo Excel (.xlsx)</label>
+                <input id="archivo_excel" type="file" name="archivo_excel" accept=".xlsx" required>
+
+                <fieldset>
+                    <legend>Periodos a incluir</legend>
+                    <div class="periodos">
+                        {% for periodo in periodos %}
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="periodos" value="{{ periodo }}"
+                                       {% if periodo in periodos_default %}checked{% endif %}>
+                                <span>{{ periodo }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+
+                <button type="submit">Generar Reporte</button>
+            </form>
+        </section>
+    </main>
+</body>
+</html>
