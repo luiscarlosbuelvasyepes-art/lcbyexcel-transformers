@@ -1,54 +1,15 @@
-import math
 import os
-import re
-from datetime import datetime
 from io import BytesIO
 
 import pandas as pd
-from flask import Flask, render_template, request, send_file
-from openpyxl import Workbook
-
-
-PERIODOS = ["001", "002", "003", "FINAL"]
-METRICAS_BASE = ["PROM", "PUESTO", "REPR", "ART", "CNT", "CPM", "EDF", "EMPIN"]
-ALIAS_METRICAS = {
-    "prom": "PROM",
-    "promedio": "PROM",
-    "puesto": "PUESTO",
-    "repr": "REPR",
-    "art": "ART",
-    "cnt": "CNT",
-    "cpm": "CPM",
-    "edf": "EDF",
-    "empi": "EMPIN",
-    "empin": "EMPIN",
-}
-ALIAS_ESTUDIANTE = [
-    "estudiante",
-    "alumno",
-    "alumna",
-    "nombre",
-    "nombres",
-    "est",
-    "id",
-    "identificacion",
-    "codigo",
-    "documento",
-]
-ALIAS_PERIODO = ["periodo", "periodo academico", "periodo aca", "corte", "lapso"]
-PATRONES_NO_ESTUDIANTE = [
-    r"^\d+\.?\s*desempe[nñ]o",
-    r"^desempe[nñ]o",
-    r"consolidado",
-    r"del curso",
-    r"^grupo\b",
-    r"totales?",
-    r"resumen",
-]
-
+from flask import Flask, render_template, request, send_file, jsonify
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+
+df_original = None
+df_procesado = None
+archivo_nombre = None
 
 
 @app.route("/health", methods=["GET"])
@@ -56,75 +17,135 @@ def health():
     return {"status": "ok"}, 200
 
 
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
+
+
+@app.route("/cargar", methods=["POST"])
+def cargar_archivo():
+    global df_original, df_procesado, archivo_nombre
+    
+    try:
+        if "archivo" not in request.files:
+            return jsonify({"error": "No se seleccionó archivo"}), 400
+        
+        archivo = request.files["archivo"]
+        if archivo.filename == "":
+            return jsonify({"error": "Nombre de archivo vacío"}), 400
+        
+        if not archivo.filename.lower().endswith(".xlsx"):
+            return jsonify({"error": "Solo se permiten archivos .xlsx"}), 400
+        
+        df = pd.read_excel(archivo)
+        
+        if df.shape[1] < 2:
+            return jsonify({"error": "El archivo debe tener al menos dos columnas"}), 400
+        
+        df_original = df
+        df_procesado = None
+        archivo_nombre = archivo.filename
+        
+        # Convertir DataFrame a tabla HTML
+        tabla_html = df.fillna("").to_html(classes="tabla-datos", index=False)
+        
+        return jsonify({
+            "success": True,
+            "nombre": archivo_nombre,
+            "filas": len(df),
+            "columnas": len(df.columns),
+            "tabla": tabla_html
+        })
+    
+    except Exception as error:
+        return jsonify({"error": f"Error al cargar archivo: {str(error)}"}), 500
+
+
+@app.route("/procesar", methods=["POST"])
+def procesar():
+    global df_original, df_procesado
+    
+    try:
+        if df_original is None:
+            return jsonify({"error": "Primero debes cargar un archivo"}), 400
+        
+        df = df_original.copy()
+        
+        # Eliminar filas completamente vacías
+        df = df.dropna(how="all")
+        
+        if df.empty:
+            return jsonify({"error": "No hay filas válidas para procesar"}), 400
+        
+        # Segunda columna por posición, reemplazar vacíos por 0
+        nombre_segunda_columna = df.columns[1]
+        segunda_columna_numerica = pd.to_numeric(df[nombre_segunda_columna], errors="coerce")
+        segunda_columna_numerica = segunda_columna_numerica.fillna(0)
+        df[nombre_segunda_columna] = segunda_columna_numerica
+        
+        # Calcular columna ACUM
+        df["ACUM"] = segunda_columna_numerica.cumsum()
+        
+        df_procesado = df
+        
+        # Convertir a tabla HTML
+        tabla_html = df.fillna("").to_html(classes="tabla-datos", index=False)
+        
+        return jsonify({
+            "success": True,
+            "mensaje": "Datos procesados correctamente",
+            "filas": len(df),
+            "columnas": len(df.columns),
+            "tabla": tabla_html
+        })
+    
+    except Exception as error:
+        return jsonify({"error": f"Error al procesar: {str(error)}"}), 500
+
+
+@app.route("/descargar", methods=["POST"])
+def descargar():
+    global df_procesado, archivo_nombre
+    
+    try:
+        if df_procesado is None:
+            return jsonify({"error": "Primero debes procesar los datos"}), 400
+        
+        # Generar nombre del archivo descargado
+        if archivo_nombre:
+            nombre_salida = archivo_nombre.replace(".xlsx", "_procesado.xlsx")
+        else:
+            nombre_salida = "resultado_procesado.xlsx"
+        
+        # Guardar a BytesIO
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df_procesado.to_excel(writer, index=False, sheet_name="Datos")
+        
+        output.seek(0)
+        
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=nombre_salida,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    
+    except Exception as error:
+        return jsonify({"error": f"Error al descargar: {str(error)}"}), 500
+
+
 @app.errorhandler(413)
 def archivo_muy_grande(_error):
-    return render_template(
-        "index.html",
-        periodos=PERIODOS,
-        periodos_default=["001"],
-        error="El archivo supera el tamaño permitido de 16 MB.",
-    ), 413
+    return jsonify({"error": "El archivo supera el tamaño permitido de 16 MB"}), 413
 
 
-def normalizar_texto(valor: object) -> str:
-    if pd.isna(valor):
-        return ""
-    texto = str(valor).strip()
-    return re.sub(r"\s+", " ", texto)
+if __name__ == "__main__":
+    puerto = int(os.environ.get("PORT", "5000"))
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(debug=debug, host="0.0.0.0", port=puerto)
 
 
-def clave_texto(valor: object) -> str:
-    texto = normalizar_texto(valor).lower()
-    return (
-        texto.replace("á", "a")
-        .replace("é", "e")
-        .replace("í", "i")
-        .replace("ó", "o")
-        .replace("ú", "u")
-    )
-
-
-def parece_numero(valor: object) -> bool:
-    if pd.isna(valor):
-        return False
-    texto = normalizar_texto(valor).replace(",", ".")
-    if not texto:
-        return False
-    return bool(re.fullmatch(r"[-+]?\d+(\.\d+)?", texto))
-
-
-def contiene_letras(valor: object) -> bool:
-    return bool(re.search(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]", normalizar_texto(valor)))
-
-
-def es_etiqueta_estudiante_valida(texto: str) -> bool:
-    if not texto:
-        return False
-    clave = clave_texto(texto)
-    if len(clave) < 4 or not contiene_letras(texto):
-        return False
-    for patron in PATRONES_NO_ESTUDIANTE:
-        if re.search(patron, clave):
-            return False
-    return True
-
-
-def es_columna_auxiliar(columna: object) -> bool:
-    return bool(re.fullmatch(r"col_\d+(?:_\d+)?", clave_texto(columna)))
-
-
-def nombre_columna_unico(nombre: str, usados: set[str]) -> str:
-    base = nombre or "COL"
-    candidato = base
-    sufijo = 2
-    while candidato in usados:
-        candidato = f"{base}_{sufijo}"
-        sufijo += 1
-    usados.add(candidato)
-    return candidato
-
-
-def detectar_fila_encabezado(df: pd.DataFrame) -> int:
     mejor_indice = 0
     mejor_puntaje = -1
     limite = min(len(df), 20)
